@@ -111,6 +111,9 @@ def main() -> None:
     parser.add_argument("--pairs", type=int, default=256)
     parser.add_argument("--n-random", type=int, default=20)
     parser.add_argument("--variables", nargs="+", default=["input", "output"], help="variables to measure geometry for")
+    parser.add_argument("--tasks", nargs="+", default=TASKS)
+    parser.add_argument("--subspace-module", default="ReflectSelect", choices=["ReflectSelect", "DAS"],
+                        help="DAS: one learned basis, used directly as the subspace")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -118,7 +121,7 @@ def main() -> None:
     tok = AutoTokenizer.from_pretrained(M)
     tok.pad_token, tok.padding_side, tok.pad_token_id = tok.eos_token, "left", tok.eos_token_id
     h = RavelInterpreterHypernetwork(model_name_or_path=M, num_editing_heads=32, intervention_layer=args.layer,
-                                     subspace_module="ReflectSelect", das_dimension=args.das_dim,
+                                     subspace_module=args.subspace_module, das_dimension=args.das_dim,
                                      chop_editor_at_layer=2).cuda()
     h.load_model(args.model_dir)
     h.eval()
@@ -126,15 +129,15 @@ def main() -> None:
     rows = [strip(json.loads(line)) for line in open(args.data)]
     rng = np.random.default_rng(0)
     acc_rows = []
-    for task in TASKS:
-        for var in ["input", "offset", "output"]:
+    for task in args.tasks:
+        for var in args.variables:
             for kind in ["causal", "isolate"]:
                 sel = [r for r in rows if r["task"] == task and r["variable"] == var and r["attribute_type"] == kind][:256]
                 acc_rows.append({"task": task, "variable": var, "kind": kind, "n": len(sel), "acc": accuracy(h, tok, sel)})
                 print(acc_rows[-1])
     pd.DataFrame(acc_rows).to_csv(out / "accuracy_by_variable.csv", index=False)
     table, agreement_rows = [], []
-    for task in TASKS:
+    for task in args.tasks:
         data = json.load(open(f"/workspace/arithmetic-wild/datasets/Llama-3.1-8B/{task}/filtered_dataset.json"))
         seen, prompts = set(), []
         for r in data["input"] + [r for g in data["counterfactual_inputs"] for r in g]:
@@ -145,7 +148,10 @@ def main() -> None:
         for var, key in ((v, GROUP_KEY[v]) for v in args.variables):
             pair_rows = [r for r in rows if r["task"] == task and r["variable"] == var and r["attribute_type"] == "causal"]
             pair_rows = [pair_rows[i] for i in rng.permutation(len(pair_rows))[: args.pairs]]
-            W = subspaces(h, tok, pair_rows)
+            if args.subspace_module == "DAS":
+                W = h.interpreter.das_module.rotate_layer.weight.detach().float().unsqueeze(0)
+            else:
+                W = subspaces(h, tok, pair_rows)
             U, agree, top = consensus(W)
             agreement_rows.append({"task": task, "variable": var, "n_pairs": len(W),
                                    "agreement_mean": agree.mean().item(), "agreement_min": agree.min().item(),

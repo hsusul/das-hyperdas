@@ -61,7 +61,24 @@ Two things this showed:
 - At the output of layer 18, only the `output` variable can be swapped. Swapping the whole last-token vector moves `input`/`offset` answers only 8-22% of the time, because the MLP has already combined them into the sum. The paper localizes those two right after attention (`post_attn_resid`), which HyperDAS's layer-output hook cannot reach. Training on all three variables at this site asked for something that is not there.
 - In the output-only model, every example gets the same reflection vector (`subspace_agreement.json`, agreement 1.000): the hypernetwork ignores its inputs. The geometry rows in `results/hyperdas_output_only/topology_vectors.csv` therefore describe an untrained-looking subspace and should not be read as a HyperDAS result.
 
-Untested next steps: subspace dim 128 as in the HyperDAS paper; a higher learning rate for the hypernetwork; hooking `post_attention_layernorm` so `input`/`offset` can be trained at the paper's site; HyperDAS's plain `DAS` subspace module instead of `ReflectSelect`.
+### Diagnosis trials (`results/hyperdas_trials/`)
+
+All on the `output` variable, layer 18 output, subspace dim 8 unless noted. Causal/isolate accuracy on held-out pairs, final eval, HyperDAS's default (soft) inference mode.
+
+| Trial | Setup | Causal | Isolate | Reading |
+|---|---|---|---|---|
+| `forced_intervention.py` | HyperDAS's own intervention code, token choice set by hand (last base token <- last source token), released DAS basis | months 84%, weekdays 97% | - | Intervention code is fine |
+| `frozen_das` | months; released DAS basis loaded and frozen; only token selection trains | 84% (by step 100) | 87% | Token selection learns fine |
+| `dim128` | all tasks, ReflectSelect, dim 128, 1 epoch | 6% | 11% | Bigger subspace does not help |
+| `dasmodule` | all tasks, plain DAS module, stopped at step 250 | 4% | 96% (no-op) | - |
+| `months_random` | months, plain DAS module, random init, 3 epochs | 13% | 7% | Subspace learning fails from random init |
+| `months_pca` | months, plain DAS module, init inside top PCs of the 32 per-sum mean activations, 3 epochs | 87% | 94% | Works, but the init used the answer grouping |
+| `per_prompt_pca_months` | same, but PCs of the 190 individual prompts (no labels), as arithmetic-wild does | 10% | 9% | Fails without the label-informed init |
+| `reflect_all_tasks_per_prompt_pca` | all tasks, ReflectSelect, per-prompt PCA init, 3 epochs | 6% | 40% | Fails |
+
+Conclusion so far: on these tasks HyperDAS learns which tokens to swap, but it does not learn the subspace itself unless it starts almost inside the answer subspace. Plain DAS with a fixed last-token position (the released subspaces) does find it. The `months_pca` result should not be read as HyperDAS discovering the subspace independently.
+
+Not tried: more epochs or data for the from-scratch runs, a separate (higher or lower) learning rate for the rotation, and hooking `post_attention_layernorm` for the `input`/`offset` variables.
 
 ## Reproduce
 
