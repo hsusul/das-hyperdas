@@ -28,8 +28,8 @@ AutoTokenizer.from_pretrained = _single_bos_tokenizer
 from train import run_experiment  # noqa: E402
 
 
-def to_disk(jsonl: Path, limit: int | None) -> str:
-    rows = [json.loads(line) for line in open(jsonl)][:limit]
+def to_disk(jsonl: Path, limit: int | None, variables: list[str]) -> str:
+    rows = [r for r in map(json.loads, open(jsonl)) if r["variable"] in variables][:limit]
     # collate adds a space before the target, so a prompt ending in a space
     # (hours) would get two and shift the label by one token
     for r in rows:
@@ -52,6 +52,7 @@ parser.add_argument("--limit", type=int, default=None)
 parser.add_argument("--eval-steps", type=int, default=200)
 parser.add_argument("--no-sparsity", action="store_true", help="turn off the source-token selection sparsity loss")
 parser.add_argument("--causal-weight", type=float, default=3.5)
+parser.add_argument("--variables", nargs="+", default=["input", "offset", "output"])
 args = parser.parse_args()
 
 os.makedirs(args.save_dir, exist_ok=True)
@@ -60,8 +61,8 @@ run_experiment(
     log_wandb=False,
     intervention_layer=args.layer,
     model_name_or_path="meta-llama/Llama-3.1-8B",
-    train_path=to_disk(Path(args.data) / "train.jsonl", args.limit),
-    test_path=to_disk(Path(args.data) / "test.jsonl", args.limit and args.limit // 4),
+    train_path=to_disk(Path(args.data) / "train.jsonl", args.limit, args.variables),
+    test_path=to_disk(Path(args.data) / "test.jsonl", args.limit and args.limit // 4, args.variables),
     das_dimension=args.das_dim,
     n_epochs=args.epochs,
     batch_size=args.batch_size,

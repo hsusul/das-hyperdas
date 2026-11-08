@@ -29,7 +29,7 @@ First look, not yet a claim:
 - For `input`, the wrap-around step (Dec to Jan, Sun to Mon, 23 to 00) is about as long as an ordinary neighbor step in both raw and DAS space (ratio to the median neighbor step: months 1.27 raw / 1.07 DAS, weekdays 1.10 / 1.10, hours 1.91 / 2.14). So far there is no raw-vs-DAS difference in where the cycle closes.
 - DAS vs random-subspace z-scores are mixed (e.g. hours `output` H1 max persistence z = 6.8, months `output` z = 0.0). With 7 to 68 points per cloud these numbers are noisy.
 
-## HyperDAS (in progress)
+## HyperDAS
 
 - `hyperdas/build_hyperdas_data.py` turns the arithmetic-wild prompts into HyperDAS's RAVEL format: base prompt, source prompt, an instruction such as "Localize the starting month in this months question.", and the expected answer. `causal` examples change the named variable; `isolate` examples keep it fixed and expect the base answer.
 - `hyperdas/train_hyperdas.py` trains one hypernetwork for all three tasks and variables at layer 18 (hidden_states index 19), subspace dim 8.
@@ -46,7 +46,22 @@ Fixes needed to get HyperDAS working on Llama-3.1 with our prompts:
    - Hours prompts end with a space and collate adds another before the target, which shifted the label by one token (0% correct with no intervention). Trailing spaces are stripped from prompts.
    - With empty suffixes, collate runs `mask[-0:] = 0`, which blanks the whole source mask, so the hypernetwork could never select a source token. Both suffix-visibility flags are on, which skips that code. `check_base_acc.py` is the no-intervention sanity check.
 
-The first full run (before fixes 2) finished but learned nothing (causal accuracy ~5%). A rerun with all fixes is in progress.
+### Result so far: HyperDAS does not learn this task (yet)
+
+| Run | Data | Causal acc | Isolate acc |
+|---|---|---|---|
+| First full run, before the fixes above | all 3 variables, 33k pairs, 3 epochs | ~5% | ~35% |
+| Mixed, after fixes (stopped at step 2000) | all 3 variables | ~5% | ~40% |
+| Output only, after fixes (`results/hyperdas_output_only/`) | `output` only, 3 epochs | months 9%, weekdays 17%, hours 4% | 20-49% |
+
+For comparison, `results/patching_check.txt` swaps only the released 8-d DAS output subspace at the same site (output of layer 18, last token) with plain transformers hooks: 84% causal for months, 97% for weekdays. So a working 8-d subspace exists there and the labels are right; HyperDAS is not finding it.
+
+Two things this showed:
+
+- At the output of layer 18, only the `output` variable can be swapped. Swapping the whole last-token vector moves `input`/`offset` answers only 8-22% of the time, because the MLP has already combined them into the sum. The paper localizes those two right after attention (`post_attn_resid`), which HyperDAS's layer-output hook cannot reach. Training on all three variables at this site asked for something that is not there.
+- In the output-only model, every example gets the same reflection vector (`subspace_agreement.json`, agreement 1.000): the hypernetwork ignores its inputs. The geometry rows in `results/hyperdas_output_only/topology_vectors.csv` therefore describe an untrained-looking subspace and should not be read as a HyperDAS result.
+
+Untested next steps: subspace dim 128 as in the HyperDAS paper; a higher learning rate for the hypernetwork; hooking `post_attention_layernorm` so `input`/`offset` can be trained at the paper's site; HyperDAS's plain `DAS` subspace module instead of `ReflectSelect`.
 
 ## Reproduce
 

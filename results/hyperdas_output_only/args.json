@@ -1,0 +1,16 @@
+{
+  "data": "/workspace/hyperdas_data",
+  "save_dir": "/workspace/results/hyperdas_output",
+  "layer": 19,
+  "das_dim": 8,
+  "epochs": 3,
+  "batch_size": 16,
+  "lr": 4e-05,
+  "limit": null,
+  "eval_steps": 500,
+  "no_sparsity": false,
+  "causal_weight": 3.5,
+  "variables": [
+    "output"
+  ]
+}

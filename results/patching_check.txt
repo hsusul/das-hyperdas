@@ -1,0 +1,16 @@
+# hyperdas/check_patching.py: last-token interchange at the output of layer 18 (hidden_states[19]),
+# 128 held-out pairs per row (fewer for weekdays). full = swap the whole vector,
+# das_out = swap only the released 8-d DAS output subspace. Accuracy on the first answer token;
+# hours rows are uninformative because that token is always a space.
+months   input  causal  n=128 full=0.12 das_out=0.08
+months   input  isolate n=128 full=0.02 das_out=0.05
+months   offset causal  n=128 full=0.20 das_out=0.11
+months   offset isolate n=128 full=0.12 das_out=0.19
+months   output causal  n=128 full=0.70 das_out=0.84
+months   output isolate n=128 full=0.84 das_out=0.87
+weekdays input  causal  n= 77 full=0.19 das_out=0.16
+weekdays input  isolate n= 50 full=0.02 das_out=0.04
+weekdays offset causal  n= 79 full=0.22 das_out=0.16
+weekdays offset isolate n= 50 full=0.04 das_out=0.02
+weekdays output causal  n= 86 full=0.93 das_out=0.97
+weekdays output isolate n= 50 full=1.00 das_out=1.00

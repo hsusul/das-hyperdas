@@ -66,6 +66,21 @@ def subspaces(h, tok, rows, batch_size=16):
     return R.unsqueeze(0) - 2 * rv.unsqueeze(2) * (rv @ R).unsqueeze(1)
 
 
+@torch.no_grad()
+def accuracy(h, tok, rows, batch_size=16) -> float:
+    """Fraction of rows whose whole target is predicted exactly under the learned intervention."""
+    collate = get_ravel_collate_fn(tok, add_space_before_target=True,
+                                   source_suffix_visibility=True, base_suffix_visibility=True)
+    hits = []
+    for i in range(0, len(rows), batch_size):
+        b = {k: v.cuda() for k, v in collate(rows[i:i + batch_size]).items()}
+        logits = h.forward(**b).logits
+        pred, lab = logits[:, :-1].argmax(-1), b["labels"][:, 1:]
+        mask = lab != -100
+        hits += ((pred == lab) | ~mask).all(-1).tolist()
+    return float(np.mean(hits))
+
+
 def consensus(W: torch.Tensor):
     k = W.shape[-1]
     P = torch.einsum("nik,njk->ij", W, W) / len(W)
@@ -95,6 +110,7 @@ def main() -> None:
     parser.add_argument("--das-dim", type=int, default=8)
     parser.add_argument("--pairs", type=int, default=256)
     parser.add_argument("--n-random", type=int, default=20)
+    parser.add_argument("--variables", nargs="+", default=["input", "output"], help="variables to measure geometry for")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -109,6 +125,14 @@ def main() -> None:
 
     rows = [strip(json.loads(line)) for line in open(args.data)]
     rng = np.random.default_rng(0)
+    acc_rows = []
+    for task in TASKS:
+        for var in ["input", "offset", "output"]:
+            for kind in ["causal", "isolate"]:
+                sel = [r for r in rows if r["task"] == task and r["variable"] == var and r["attribute_type"] == kind][:256]
+                acc_rows.append({"task": task, "variable": var, "kind": kind, "n": len(sel), "acc": accuracy(h, tok, sel)})
+                print(acc_rows[-1])
+    pd.DataFrame(acc_rows).to_csv(out / "accuracy_by_variable.csv", index=False)
     table, agreement_rows = [], []
     for task in TASKS:
         data = json.load(open(f"/workspace/arithmetic-wild/datasets/Llama-3.1-8B/{task}/filtered_dataset.json"))
@@ -118,7 +142,7 @@ def main() -> None:
                 seen.add(r["raw_input"])
                 prompts.append(r)
         acts = last_token_states(h.interpreter.target_model, tok, [p["raw_input"].rstrip(" ") for p in prompts], args.layer)
-        for var, key in GROUP_KEY.items():
+        for var, key in ((v, GROUP_KEY[v]) for v in args.variables):
             pair_rows = [r for r in rows if r["task"] == task and r["variable"] == var and r["attribute_type"] == "causal"]
             pair_rows = [pair_rows[i] for i in rng.permutation(len(pair_rows))[: args.pairs]]
             W = subspaces(h, tok, pair_rows)
