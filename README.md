@@ -33,9 +33,20 @@ First look, not yet a claim:
 
 - `hyperdas/build_hyperdas_data.py` turns the arithmetic-wild prompts into HyperDAS's RAVEL format: base prompt, source prompt, an instruction such as "Localize the starting month in this months question.", and the expected answer. `causal` examples change the named variable; `isolate` examples keep it fixed and expect the base answer.
 - `hyperdas/train_hyperdas.py` trains one hypernetwork for all three tasks and variables at layer 18 (hidden_states index 19), subspace dim 8.
-- `hyperdas/hyperdas_llama31.patch` is the two-line patch to [jiudingsun01/HyperDAS](https://github.com/jiudingsun01/HyperDAS) needed for Llama-3.1 with transformers 4.44.2:
-  - the `_update_causal_mask` call signature changed;
-  - the low-rank rotation weight was left uninitialized (`torch.empty`), which gave NaN losses.
+- `hyperdas/hyperdas_geometry.py` pulls a subspace out of the trained model and runs the topology pipeline in it. ReflectSelect gives each example its own basis (a Householder reflection of one learned basis), so per task and variable it averages the projectors over 256 held-out pairs, keeps the top 8 directions, and reports how well the per-example bases agree with that consensus.
+- `hyperdas/after_training.sh` runs the analysis when training ends and stops the pod after 45 idle minutes.
+
+Fixes needed to get HyperDAS working on Llama-3.1 with our prompts:
+
+1. `hyperdas/hyperdas_llama31.patch` (applied to [jiudingsun01/HyperDAS](https://github.com/jiudingsun01/HyperDAS)):
+   - the `_update_causal_mask` call signature changed in transformers 4.44.2;
+   - the low-rank rotation weight was left uninitialized (`torch.empty`), which gave NaN losses.
+2. In `train_hyperdas.py` / `train_hyperdas_tok.py`:
+   - The collate function prepends a BOS token and Llama-3's tokenizer adds another; with two, the model got months right only 63% of the time with no intervention. The tokenizer is patched to stop adding its own.
+   - Hours prompts end with a space and collate adds another before the target, which shifted the label by one token (0% correct with no intervention). Trailing spaces are stripped from prompts.
+   - With empty suffixes, collate runs `mask[-0:] = 0`, which blanks the whole source mask, so the hypernetwork could never select a source token. Both suffix-visibility flags are on, which skips that code. `check_base_acc.py` is the no-intervention sanity check.
+
+The first full run (before fixes 2) finished but learned nothing (causal accuracy ~5%). A rerun with all fixes is in progress.
 
 ## Reproduce
 
