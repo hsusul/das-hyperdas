@@ -1,7 +1,16 @@
 diff --git a/src/hyperdas/das_utils.py b/src/hyperdas/das_utils.py
-index ad13d96..15b3edb 100644
+index ad13d96..a1c4fb8 100644
 --- a/src/hyperdas/das_utils.py
 +++ b/src/hyperdas/das_utils.py
+@@ -307,7 +307,7 @@ class LowRankRotatedSpaceIntervention(TrainableIntervention, DistributedRepresen
+     def __init__(self, embed_dim, low_rank_dimension, **kwargs):
+         super().__init__(**kwargs)
+         self.embed_dim = embed_dim
+-        rotate_layer = LowRankRotateLayer(self.embed_dim, low_rank_dimension, init_orth=False)
++        rotate_layer = LowRankRotateLayer(self.embed_dim, low_rank_dimension, init_orth=True)
+         self.rotate_layer = nn.utils.parametrizations.orthogonal(rotate_layer)
+         self.sparsity = low_rank_dimension / self.embed_dim
+         
 @@ -407,7 +407,7 @@ class ReflectiveLowRankRotatedSpaceIntervention(TrainableIntervention, Distribut
      def __init__(self, embed_dim, low_rank_dimension, torch_dtype=torch.bfloat16, save_vector=False, **kwargs):
          super().__init__(**kwargs)

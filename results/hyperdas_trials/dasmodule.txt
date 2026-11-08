@@ -1,0 +1,6 @@
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.5119822889716245, Causal Acc: 0.03555878084179971, Isolate Acc: 0.9884057971014493, Test Loss: 1.3813565703538748
+Under Inference Mode:  default
+Disentangle Acc: 0.4960402599861173, Causal Acc: 0.03555878084179971, Isolate Acc: 0.9565217391304348, Test Loss: 1.3923365152799165
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.5130676679077008, Causal Acc: 0.033381712626995644, Isolate Acc: 0.9927536231884058, Test Loss: 1.3902877303270194

@@ -1,0 +1,20 @@
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.5066628538747499, Causal Acc: 0.05947955390334572, Isolate Acc: 0.9538461538461539, Test Loss: 3.771382064819336
+Under Inference Mode:  default
+Disentangle Acc: 0.2191592793823277, Causal Acc: 0.11524163568773234, Isolate Acc: 0.3230769230769231, Test Loss: 3.985169620513916
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.8585358879039177, Causal Acc: 0.8401486988847584, Isolate Acc: 0.8769230769230769, Test Loss: 0.7862773740291595
+Under Inference Mode:  default
+Disentangle Acc: 0.8528309979982842, Causal Acc: 0.8364312267657993, Isolate Acc: 0.8692307692307693, Test Loss: 0.7727945423126221
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.8525736345438948, Causal Acc: 0.8513011152416357, Isolate Acc: 0.8538461538461538, Test Loss: 0.7633574914932251
+Under Inference Mode:  default
+Disentangle Acc: 0.8546897340577638, Causal Acc: 0.8401486988847584, Isolate Acc: 0.8692307692307693, Test Loss: 0.7708580386638642
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.8239205032885331, Causal Acc: 0.8401486988847584, Isolate Acc: 0.8076923076923077, Test Loss: 0.8301053142547608
+Under Inference Mode:  default
+Disentangle Acc: 0.8394338004003432, Causal Acc: 0.8327137546468402, Isolate Acc: 0.8461538461538461, Test Loss: 0.6360157799720764
+Under Inference Mode:  bidding_argmax
+Disentangle Acc: 0.812639405204461, Causal Acc: 0.8252788104089219, Isolate Acc: 0.8, Test Loss: 0.8017739629745484
+Under Inference Mode:  default
+Disentangle Acc: 0.8395624821275378, Causal Acc: 0.8252788104089219, Isolate Acc: 0.8538461538461538, Test Loss: 0.605327479839325
