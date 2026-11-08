@@ -1,0 +1,3 @@
+task,variable,kind,n,acc
+hours,output,causal,256,0.9375
+hours,output,isolate,256,0.98046875

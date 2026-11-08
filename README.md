@@ -76,9 +76,47 @@ All on the `output` variable, layer 18 output, subspace dim 8 unless noted. Caus
 | `per_prompt_pca_months` | same, but PCs of the 190 individual prompts (no labels), as arithmetic-wild does | 10% | 9% | Fails without the label-informed init |
 | `reflect_all_tasks_per_prompt_pca` | all tasks, ReflectSelect, per-prompt PCA init, 3 epochs | 6% | 40% | Fails |
 
-Conclusion so far: on these tasks HyperDAS learns which tokens to swap, but it does not learn the subspace itself unless it starts almost inside the answer subspace. Plain DAS with a fixed last-token position (the released subspaces) does find it. The `months_pca` result should not be read as HyperDAS discovering the subspace independently.
+These runs showed that HyperDAS learns which tokens to swap, but does not learn the subspace when both are learned from scratch at once. The `months_pca` result should not be read as HyperDAS discovering the subspace independently. The warm-up recipe below fixes this.
 
-Not tried: more epochs or data for the from-scratch runs, a separate (higher or lower) learning rate for the rotation, and hooking `post_attention_layernorm` for the `input`/`offset` variables.
+
+### HyperDAS working: warm-up recipe (`results/hyperdas_warmup/`)
+
+What finally isolated the problem (`hyperdas/train_hyperdas.py --force-last-token`): with the token choice fixed to base last prompt token <- source last token, HyperDAS's own training loop learns the subspace from a random init (months: 77% causal, 87% isolate). So the subspace training works; learning tokens and subspace jointly from scratch is what fails, since each needs the other to be roughly right first. Leaving the rotation out of the global grad clip did not help (11%).
+
+Recipe, per task, output variable, plain DAS module, random init, no DAS weights or labels used for initialization:
+
+1. Warm-up: train with the token choice fixed to last <- last (1 epoch; 8 for weekdays, which has ~800 pairs).
+2. Release: continue with HyperDAS choosing tokens itself (2 epochs; 6 for weekdays).
+
+The only prior is the warm-up position, which is where DAS always intervenes.
+
+Hours needed one more fix: its prompts end with a space, and that space token is where DAS intervenes and where the answer is produced. Earlier runs stripped it (to avoid a doubled space before the label), which moved the intervention one token too early. Now the space goes into the suffix so the prompt keeps it and the label is not shifted (`check_hours_labels.py`: 126/128 correct with no intervention). Hours uses 16 dims, as DAS did.
+
+Held-out accuracy after training, HyperDAS choosing tokens (`*/accuracy_by_variable.csv`):
+
+| Task | HyperDAS causal | HyperDAS isolate | DAS IIA (released) | Overlap with DAS subspace |
+|---|---|---|---|---|
+| months (8-d) | 0.86 | 0.98 | 0.85 | 0.51 |
+| weekdays (8-d) | 0.98 | 1.00 | 0.97 (plain hooks) | 0.52 |
+| hours (16-d) | 0.94 | 0.98 | 0.94 | 0.44 |
+
+Overlap is the mean squared cosine of the principal angles between the two subspaces: 4-6 directions are shared closely, the rest are not. Both subspaces pass the causal test at the same level, so the causally valid subspace is not unique.
+
+Geometry inside the HyperDAS subspace (`warmup_summary.csv`, `warmup_clouds_pca.png`, `magnitude_vs_digit.csv`):
+
+- In raw and DAS space the per-sum points lie on a smooth arc ordered by size. In the HyperDAS subspace they look more coiled, with sums sharing a units digit closer together.
+- Measured as the Spearman correlation between pairwise distance and the circular units-digit distance (min(|a-b| mod 10, 10 - |a-b| mod 10)):
+
+| Task | raw | DAS | HyperDAS | random subspaces (20) |
+|---|---|---|---|---|
+| months | 0.07 | 0.14 | 0.23 | 0.08 +/- 0.05 |
+| hours | 0.10 | 0.16 | 0.23 | 0.09 +/- 0.03 |
+| weekdays | -0.01 | 0.04 | 0.06 | 0.05 +/- 0.06 |
+
+  Magnitude (|a-b|) still dominates in every space (rho 0.56-0.92). The units-digit signal is modest but above random subspaces for HyperDAS on months (~2.8 sd) and hours (~5.3 sd), and weaker for DAS. Weekdays sums only run 2-21, which leaves little room for a units-digit pattern. This fits the Arithmetic in the Wild account of base-10 features, but it rests on one seed per task and 17-68 points per cloud.
+- The PH/curvature topology vectors differ between DAS and HyperDAS subspaces (e.g. months: 13 vs 27 H1 bars, 16% vs 43% negatively curved edges), but not in a consistent direction across tasks.
+
+Not done: more seeds, the `input`/`offset` variables (they need a hook after attention, `post_attention_layernorm`, which HyperDAS's layer-output hook cannot reach), and the instruction-conditioned ReflectSelect module (forcing tokens hits a NameError in its code path, so the warm-up was only run with the plain DAS module).
 
 ## Reproduce
 

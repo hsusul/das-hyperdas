@@ -1,0 +1,3 @@
+task,variable,kind,n,acc
+weekdays,output,causal,86,0.9767441860465116
+weekdays,output,isolate,50,1.0

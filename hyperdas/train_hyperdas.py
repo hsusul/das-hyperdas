@@ -29,13 +29,20 @@ from train import run_experiment  # noqa: E402
 from src.hyperdas.llama3.model import RavelInterpreterHypernetwork  # noqa: E402
 
 
+def split_trailing_space(r: dict) -> dict:
+    """Hours prompts end with a space, which is the token DAS intervenes on. Collate adds a space
+    before the target unless the suffix already ends with one, so move that space into the suffix:
+    the prompt keeps its last token and the label is not shifted."""
+    for side in ("input", "counterfactual_input"):
+        if r[f"{side}_prefix"].endswith(" "):
+            r[f"{side}_prefix"], r[f"{side}_suffix"] = r[f"{side}_prefix"].rstrip(" "), " "
+    return r
+
+
 def to_disk(jsonl: Path, limit: int | None, variables: list[str], tasks: list[str]) -> str:
     rows = [r for r in map(json.loads, open(jsonl)) if r["variable"] in variables and r["task"] in tasks][:limit]
-    # collate adds a space before the target, so a prompt ending in a space
-    # (hours) would get two and shift the label by one token
     for r in rows:
-        r["input_prefix"] = r["input_prefix"].rstrip(" ")
-        r["counterfactual_input_prefix"] = r["counterfactual_input_prefix"].rstrip(" ")
+        split_trailing_space(r)
     out = jsonl.with_suffix("")
     Dataset.from_list(rows).save_to_disk(str(out))
     return str(out)
@@ -61,6 +68,12 @@ parser.add_argument("--freeze-das", action="store_true", help="keep that basis f
 parser.add_argument("--init-pca", action="store_true",
                     help="start the basis at random inside the top PCs (90%% variance) of the training prompts' "
                          "activations at the intervention layer, as arithmetic-wild does for DAS")
+parser.add_argument("--force-last-token", action="store_true",
+                    help="fix token selection to base last prompt token <- source last token; only the subspace learns")
+parser.add_argument("--rotate-lr", type=float, default=None, help="learning rate for the rotation (HyperDAS default 1e-3)")
+parser.add_argument("--clip-without-rotation", action="store_true",
+                    help="leave the rotation out of the global grad-norm clip (4.0 over every trainable parameter)")
+parser.add_argument("--load-from", default=None, help="final_model dir of an earlier run to continue from")
 args = parser.parse_args()
 
 if args.init_das or args.init_pca:
@@ -104,8 +117,49 @@ if args.init_das or args.init_pca:
 
 os.makedirs(args.save_dir, exist_ok=True)
 json.dump(vars(args), open(os.path.join(args.save_dir, "args.json"), "w"), indent=2)
+if args.force_last_token or args.rotate_lr or args.clip_without_rotation:
+    import torch
+
+    _init2 = RavelInterpreterHypernetwork.__init__
+    rotation_params: set[int] = set()
+
+    def _init_options(self, *a, **k):
+        _init2(self, *a, **k)
+        if args.rotate_lr:
+            self.rotate_lr = args.rotate_lr
+        rotation_params.update(id(p) for p in self.interpreter.das_module.rotate_layer.parameters())
+
+    RavelInterpreterHypernetwork.__init__ = _init_options
+
+if args.force_last_token:
+    _forward = RavelInterpreterHypernetwork.forward
+
+    def _forward_last_token(self, *a, **k):
+        if k.get("intervention_weight") is None:
+            labels, n = k["labels"], k["labels"].shape[0]
+            base_len, source_len = labels.shape[1], k["source_input_ids"].shape[1]
+            last_prompt = (labels != -100).float().argmax(-1) - 1
+            W = torch.zeros(n, source_len + 1, base_len, device=labels.device, dtype=torch.bfloat16)
+            W[:, -1, :] = 1  # every base position keeps itself...
+            rows = torch.arange(n, device=labels.device)
+            W[rows, -1, last_prompt] = 0  # ...except the last prompt token, which takes the source's last token
+            W[rows, source_len - 1, last_prompt] = 1
+            k["intervention_weight"] = W
+        return _forward(self, *a, **k)
+
+    RavelInterpreterHypernetwork.forward = _forward_last_token
+
+if args.clip_without_rotation:
+    _clip = torch.nn.utils.clip_grad_norm_
+
+    def _clip_others(parameters, *a, **k):
+        return _clip([p for p in parameters if id(p) not in rotation_params], *a, **k)
+
+    torch.nn.utils.clip_grad_norm_ = _clip_others
+
 run_experiment(
     log_wandb=False,
+    load_trained_from=args.load_from,
     intervention_layer=args.layer,
     model_name_or_path="meta-llama/Llama-3.1-8B",
     train_path=to_disk(Path(args.data) / "train.jsonl", args.limit, args.variables, args.tasks),

@@ -1,0 +1,10 @@
+task,space,h1_count_finite,h1_max_persistence,h1_dominance_ratio,h0_max_persistence,ricci_mean,ricci_fraction_negative,z_h1_max_persistence,z_ricci_fraction_negative
+months,raw,5.0,0.044,0.405,0.565,0.214,0.102,-0.54,-1.01
+months,das,13.0,0.045,0.184,0.329,0.242,0.163,-0.51,-0.35
+months,hyperdas,27.0,0.111,0.083,0.436,0.062,0.429,1.63,2.49
+weekdays,raw,1.0,0.002,1.0,0.517,0.219,0.231,-1.38,0.81
+weekdays,das,3.0,0.024,0.48,0.398,0.196,0.385,-0.19,2.28
+weekdays,hyperdas,5.0,0.018,0.314,0.448,0.151,0.231,-0.53,0.81
+hours,raw,53.0,0.108,0.038,0.559,0.173,0.127,1.37,-1.53
+hours,das,61.0,0.141,0.041,0.489,0.147,0.189,2.89,-0.06
+hours,hyperdas,58.0,0.121,0.04,0.494,0.14,0.268,1.97,1.84

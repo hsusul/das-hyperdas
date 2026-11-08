@@ -43,9 +43,11 @@ def features(cloud, name):
 
 
 def strip(row: dict) -> dict:
+    """Same prompt handling as train_hyperdas.split_trailing_space."""
     row = dict(row)
-    row["input_prefix"] = row["input_prefix"].rstrip(" ")
-    row["counterfactual_input_prefix"] = row["counterfactual_input_prefix"].rstrip(" ")
+    for side in ("input", "counterfactual_input"):
+        if row[f"{side}_prefix"].endswith(" "):
+            row[f"{side}_prefix"], row[f"{side}_suffix"] = row[f"{side}_prefix"].rstrip(" "), " "
     return row
 
 
@@ -144,7 +146,7 @@ def main() -> None:
             if r["raw_input"] not in seen:
                 seen.add(r["raw_input"])
                 prompts.append(r)
-        acts = last_token_states(h.interpreter.target_model, tok, [p["raw_input"].rstrip(" ") for p in prompts], args.layer)
+        acts = last_token_states(h.interpreter.target_model, tok, [p["raw_input"] for p in prompts], args.layer)
         for var, key in ((v, GROUP_KEY[v]) for v in args.variables):
             pair_rows = [r for r in rows if r["task"] == task and r["variable"] == var and r["attribute_type"] == "causal"]
             pair_rows = [pair_rows[i] for i in rng.permutation(len(pair_rows))[: args.pairs]]
