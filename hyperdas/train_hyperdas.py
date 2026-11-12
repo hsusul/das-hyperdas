@@ -74,7 +74,32 @@ parser.add_argument("--rotate-lr", type=float, default=None, help="learning rate
 parser.add_argument("--clip-without-rotation", action="store_true",
                     help="leave the rotation out of the global grad-norm clip (4.0 over every trainable parameter)")
 parser.add_argument("--load-from", default=None, help="final_model dir of an earlier run to continue from")
+parser.add_argument("--seed", type=int, default=None)
 args = parser.parse_args()
+
+if args.seed is not None:
+    import random
+
+    import numpy as np
+    import torch
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
+_save_model = RavelInterpreterHypernetwork.save_model
+
+
+def _save_with_rotation(self, save_dir):
+    """Also write the learned basis as a small .npy (the DAS module's subspace is just this matrix)."""
+    _save_model(self, save_dir)
+    import numpy as np
+
+    W = self.interpreter.das_module.rotate_layer.weight.detach().float().cpu().numpy()
+    np.save(os.path.join(save_dir, "rotation.npy"), W)
+
+
+RavelInterpreterHypernetwork.save_model = _save_with_rotation
 
 if args.init_das or args.init_pca:
     import numpy as np
