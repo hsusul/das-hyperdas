@@ -1,0 +1,4 @@
+bidding_argmax causal: 0.8488372093023255
+bidding_argmax isolate: 0.86
+default causal: 0.9767441860465116
+default isolate: 0.98

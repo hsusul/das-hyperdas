@@ -118,6 +118,42 @@ Geometry inside the HyperDAS subspace (`warmup_summary.csv`, `warmup_clouds_pca.
 
 Not done: more seeds, the `input`/`offset` variables (they need a hook after attention, `post_attention_layernorm`, which HyperDAS's layer-output hook cannot reach), and the instruction-conditioned ReflectSelect module (forcing tokens hits a NameError in its code path, so the warm-up was only run with the plain DAS module).
 
+## 200 points per concept (`results/point_clouds_200/`)
+
+Each concept is now a cloud of 200 individual prompts (one point per prompt, no averaging), drawn at random from all prompts Llama-3.1-8B answers correctly. Three draws per task, so every cloud has the same size.
+
+- Prompts (`hyperdas/make_prompts.py`): every value x offset combination for each template. Months: 3 templates, 510 correct. Weekdays: 5 templates, 226 correct (3 templates gave only 175). Hours: the original template, 700 correct. Templates follow arithmetic-wild's rephrased-templates notebook.
+- Subspaces: raw (4096-d), released DAS output subspace, HyperDAS output subspaces from 3 seeds per task (warm-up recipe, trained on the original template only), and 20 random subspaces of the same size.
+- HyperDAS held-out causal accuracy per seed (`train_logs/`): months 0.83 / 0.85 / 0.86, weekdays 0.99 / 0.99 / 0.98, hours 0.97 / 0.90 / 0.97.
+- Measured per cloud (`hyperdas/point_clouds.py`): the topology vector, plus Spearman correlations between pairwise distances and (a) |sum difference| (magnitude), (b) the circular units-digit distance of the sums (base-10), and (c) the circular distance of the starting concept on its own cycle (Dec next to Jan).
+
+Mean over draws (and seeds for HyperDAS), from `summary.csv`:
+
+| Task | Space | rho magnitude | rho units digit | rho cycle |
+|---|---|---|---|---|
+| months | raw | 0.16 | 0.05 | 0.07 |
+| | DAS | 0.39 | 0.18 | 0.13 |
+| | HyperDAS | 0.41 | 0.26 +/- 0.02 | 0.05 |
+| | random | 0.12 +/- 0.06 | 0.03 +/- 0.02 | 0.05 +/- 0.03 |
+| weekdays | raw | 0.15 | 0.06 | 0.06 |
+| | DAS | 0.54 | 0.29 | 0.16 |
+| | HyperDAS | 0.47 | 0.32 +/- 0.01 | 0.08 |
+| | random | 0.12 +/- 0.06 | 0.05 +/- 0.03 | 0.04 +/- 0.02 |
+| hours | raw | 0.44 | 0.18 | 0.19 |
+| | DAS | 0.48 | 0.26 | 0.19 |
+| | HyperDAS | 0.51 | 0.34 +/- 0.02 | 0.15 |
+| | random | 0.27 +/- 0.07 | 0.10 +/- 0.03 | 0.13 +/- 0.03 |
+
+What this shows:
+
+- Units-digit (base-10) structure in the sum subspaces is now clear for all three tasks, in the same order everywhere: HyperDAS > DAS > raw, with random subspaces at the bottom (months HyperDAS is about 15 sd above random). With 12-68 averaged points it was only visible for months and hours. It is stable across HyperDAS seeds (sd 0.01-0.02).
+- The HyperDAS subspaces carry less information about the starting concept's cycle than DAS (rho cycle 0.05-0.15 vs 0.13-0.19), consistent with an output subspace that holds the sum, not the input.
+- The subspaces themselves are not unique. HyperDAS seeds overlap each other about as much as they overlap DAS (mean squared cosine of principal angles: months 0.57-0.60 between seeds vs 0.49-0.51 with DAS; weekdays 0.55-0.57 vs 0.50-0.54; hours 0.38-0.40 vs 0.39-0.43). All of them pass the causal test, and the base-10 geometry is the same across them even though the subspaces differ.
+- Raw clouds mix several templates, which adds variance unrelated to the sum (raw rho magnitude only 0.15-0.16 for months/weekdays).
+- PH counts (e.g. raw ~230 H1 bars vs 90-200 in the subspaces) mostly track the dimension left after PCA and are not compared directly.
+
+Caveats: the DAS and HyperDAS subspaces were trained on the original template only and were not causally re-tested on the new templates; one model; output variable only.
+
 ## Reproduce
 
 On a CUDA box with access to Llama-3.1-8B:

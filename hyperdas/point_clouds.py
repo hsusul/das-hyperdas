@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -81,6 +82,7 @@ def main() -> None:
     parser.add_argument("--hyperdas-glob", default="/workspace/results/hd_{task}_seed*_stage2/final_model/rotation.npy")
     parser.add_argument("--out", default="/workspace/results/point_clouds")
     parser.add_argument("--workers", type=int, default=16)
+    parser.add_argument("--reuse-acts", action="store_true", help="load <task>_acts.npy from --out instead of running the model")
     args = parser.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -89,8 +91,11 @@ def main() -> None:
     for task in PERIOD:
         rows = json.load(open(f"/workspace/prompts/{task}.json"))
         counts[task] = len(rows)
-        X = activations([r["raw_input"] for r in rows], args.layer)
-        np.save(out / f"{task}_acts.npy", X)
+        if args.reuse_acts:
+            X = np.load(out / f"{task}_acts.npy")
+        else:
+            X = activations([r["raw_input"] for r in rows], args.layer)
+            np.save(out / f"{task}_acts.npy", X)
         sums = np.array([r["premod"] for r in rows], dtype=float)
         cycle = np.array([concept_index(task, r["input"]) for r in rows], dtype=float)
         spaces = {"raw": None,
@@ -113,7 +118,8 @@ def main() -> None:
                                               "hyperdas" if space.startswith("hyperdas") else space}})
         print(f"{task}: {len(rows)} correct prompts, spaces {[s for s in spaces if not s.startswith('random')]}", flush=True)
 
-    with ProcessPoolExecutor(args.workers) as pool:
+    # spawn, not fork: forking after CUDA and the tokenizer are loaded deadlocks the workers
+    with ProcessPoolExecutor(args.workers, mp_context=multiprocessing.get_context("spawn")) as pool:
         results = list(pool.map(measure, jobs, chunksize=2))
     df = pd.DataFrame(results)
     df.to_csv(out / "point_clouds.csv", index=False)
