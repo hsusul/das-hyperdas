@@ -1,0 +1,2 @@
+train 8445 {('day', 'causal'): 2444, ('hour', 'isolate'): 1610, ('hour', 'causal'): 2776, ('day', 'isolate'): 1615}
+test 1520 {('hour', 'isolate'): 285, ('day', 'causal'): 441, ('day', 'isolate'): 285, ('hour', 'causal'): 509}

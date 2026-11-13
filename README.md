@@ -154,6 +154,26 @@ What this shows:
 
 Caveats: the DAS and HyperDAS subspaces were trained on the original template only and were not causally re-tested on the new templates; one model; output variable only.
 
+## Torus: weekday x hour (`results/torus/`, `torus/`)
+
+Question: is time of week (two independent cycles, weekday and hour) a torus in Llama-3.1-8B? A torus shows two persistent H1 loops and one H2 void; a circle shows one loop and no void.
+
+- Prompts (`torus/torus_prompts.py`): `It is Friday at 09:00. In one hour it will be Friday at 10:00.\nIt is {day} at {hour}:00. In {n} it will be` -> " Monday at 16:00", plus a Q/A variant, n = 1-3 hours with hour + n <= 23 so the day never rolls over. 674/924 correct, 153 of the 161 possible (day, hour) pairs.
+- HyperDAS (warm-up recipe, plain DAS module, 8-d, layer 18 output, 2 seeds each) for the `day` and `hour` variables: causal ~0.99-1.0 for both. The day and hour subspaces are nearly orthogonal (overlap 0.11 and 0.08).
+- Geometry (`torus/torus_geometry.py`): Vietoris-Rips persistence up to H2 on 100 farthest-point landmarks per cloud (after the repo's PCA-95% and unit-diameter preprocessing), against 10 draws of the repo's low-rank Gaussian null. Clouds: 200 prompts (3 draws) and means per (day, hour).
+
+Results:
+
+- Controls work: a sampled torus gives two equal H1 bars (0.31, 0.31) and an H2 bar (0.25), both above the null (p = 0.09, the minimum with 10 draws); a sampled circle gives one H1 bar (0.50) and no H2.
+- No torus in any HyperDAS space (day, hour, or their union). The union subspace shows two similar H1 bars above the null in one seed (0.09-0.13, p = 0.09) but no H2 void in either seed (`torus_persistence_partial.jsonl`).
+- Why (`hour_code.csv`, `lookup_check.json`, and the check in the summary below): neither variable is a closed cycle.
+  - Hour is an ordered open line. Per-hour means have adjacent hours at 0.29-0.40 of the mean pairwise distance, but 00:00 and 22:00 are the farthest pair in raw space (2.04x the mean); in the HyperDAS hour subspaces the line bends partly back (1.68x and 0.94x) without closing. This matches the sums in the arithmetic tasks, which were also lines.
+  - Day is close to a set of equidistant points (coefficient of variation of pairwise distances 0.11-0.15) with weak ordering (adjacent days at 0.79-0.87 of the mean) and no closure (Sunday-Monday at 0.98-1.08 of the mean).
+  - Per prompt, distances barely track hour at all (rho 0.05-0.10 in every space, same as random subspaces): day, template and offset dominate.
+- Not completed: H2 for the raw residual clouds at layers 10/14/18/22/26 (those 20 jobs had not finished after 20+ minutes and were stopped). Raw space was analysed with the distance checks above instead.
+
+Reading: the method finds a torus when one is there, and the model's time-of-week representation at this position is not one. The model seems to treat hour as a number line (and day as a near-categorical code), consistent with the "add as integers, map back later" account.
+
 ## Reproduce
 
 On a CUDA box with access to Llama-3.1-8B:

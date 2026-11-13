@@ -7,7 +7,8 @@ the output of layer 18 the HyperDAS day subspace, hour subspace, their union, an
 the union's size. Each cloud is preprocessed like concept_geometry (PCA to 95% variance, unit diameter),
 then Vietoris-Rips persistence up to H2 (ripser). Persistence is compared with 20 draws of the repo's
 low-rank Gaussian null (same mean and covariance spectrum, no nonlinear structure). A sampled Clifford
-torus and circle are run through the same steps as positive controls.
+torus and circle are run through the same steps as positive controls. Rips persistence uses 100 greedy
+farthest-point landmarks per cloud (ripser n_perm) to keep H2 tractable.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import argparse
 import json
 import multiprocessing
 import sys
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -28,7 +29,8 @@ sys.path.insert(0, "/workspace")
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 LAYERS = [11, 15, 19, 23, 27]  # hidden_states indices: outputs of layers 10, 14, 18, 22, 26
-N_NULL = 20
+N_NULL = 10
+N_LANDMARKS = 100  # greedy farthest-point landmarks for Rips up to H2; all points would mean ~64M 3-simplices
 
 
 def preprocess(cloud: np.ndarray) -> np.ndarray:
@@ -41,7 +43,8 @@ def preprocess(cloud: np.ndarray) -> np.ndarray:
 def persistence(cloud: np.ndarray) -> dict:
     from ripser import ripser
 
-    dgms = ripser(preprocess(cloud), maxdim=2)["dgms"]
+    x = preprocess(cloud)
+    dgms = ripser(x, maxdim=2, n_perm=min(N_LANDMARKS, len(x)))["dgms"]
     out = {}
     for dim, k in ((1, 3), (2, 2)):
         d = dgms[dim]
@@ -158,8 +161,16 @@ def main() -> None:
                          "meta": {"cloud": "prompts", "space": name, "layer": layer, "draw": draw, "n_points": len(idx)}})
     print(f"{len(rows)} prompts, {len(keys)} (day, hour) points, {len(jobs)} clouds", flush=True)
 
+    results = []
+    partial = out / "torus_persistence_partial.jsonl"
+    partial.unlink(missing_ok=True)
     with ProcessPoolExecutor(args.workers, mp_context=multiprocessing.get_context("spawn")) as pool:
-        results = list(pool.map(measure, jobs, chunksize=1))
+        futures = [pool.submit(measure, job) for job in jobs]
+        for future in as_completed(futures):
+            results.append(future.result())
+            with open(partial, "a") as f:
+                f.write(json.dumps(results[-1]) + "\n")
+            print(f"{len(results)}/{len(jobs)} clouds done", flush=True)
     df = pd.DataFrame(results)
     df["kind"] = [sp if sp.startswith(("raw", "control")) else
                   sp.rsplit("_s", 1)[0] if sp.startswith("hyperdas") else "random" for sp in df.space]

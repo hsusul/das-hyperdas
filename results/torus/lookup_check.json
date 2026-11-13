@@ -1,0 +1,32 @@
+{
+ "day in raw": {
+  "cv_pairwise": 0.112,
+  "adjacent_over_mean": 0.872,
+  "wrap_over_mean": 0.982
+ },
+ "day in day_seed0": {
+  "cv_pairwise": 0.154,
+  "adjacent_over_mean": 0.786,
+  "wrap_over_mean": 1.054
+ },
+ "day in hour_seed0": {
+  "cv_pairwise": 0.211,
+  "adjacent_over_mean": 0.786,
+  "wrap_over_mean": 1.077
+ },
+ "hour in raw": {
+  "cv_pairwise": 0.413,
+  "adjacent_over_mean": 0.398,
+  "wrap_over_mean": null
+ },
+ "hour in day_seed0": {
+  "cv_pairwise": 0.574,
+  "adjacent_over_mean": 0.289,
+  "wrap_over_mean": null
+ },
+ "hour in hour_seed0": {
+  "cv_pairwise": 0.456,
+  "adjacent_over_mean": 0.291,
+  "wrap_over_mean": null
+ }
+}
