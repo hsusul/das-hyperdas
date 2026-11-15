@@ -202,6 +202,19 @@ Follow-up (`value_clustering_followup.py`), restricted to the original template 
 - Hour does not cluster in any space, by prompt hour or by answer hour (hour + n), even though swapping the hour subspace sets the answer hour 99% of the time. Unresolved.
 - The template-0 numbers are a follow-up chosen after seeing the all-template numbers, so report them as such.
 
+## Activations (`activations/`)
+
+Per-prompt Llama-3.1-8B activations for every prompt set, regenerated with `activations/extract_activations.py`: last prompt token, float16, rows in the same order as the prompt JSON files, with the prompt text and metadata stored alongside.
+
+| File | Prompts | Arrays |
+|---|---|---|
+| `months.npz` | 510 | `layer18_out` |
+| `weekdays.npz` | 226 | `layer18_out` |
+| `hours.npz` | 700 | `layer18_out` |
+| `torus.npz` | 674 | `layer10_out`, `layer14_out`, `layer18_out`, `layer22_out`, `layer26_out` |
+
+`layer18_out` is `hidden_states[19]`, the site of the DAS and HyperDAS subspaces. Project with `acts @ W` using a basis from `results/das_geometry/*.npz` (`W`), `results/point_clouds_200/rotations/`, or `results/torus/rotations/`.
+
 ## Reproduce
 
 On a CUDA box with access to Llama-3.1-8B:
