@@ -174,6 +174,34 @@ Results:
 
 Reading: the method finds a torus when one is there, and the model's time-of-week representation at this position is not one. The model seems to treat hour as a number line (and day as a near-categorical code), consistent with the "add as integers, map back later" account.
 
+## Value clustering in the subspaces (`clustering/`, `results/value_clustering/`)
+
+Do concept values form clusters inside the causal subspaces? Each correct prompt is a point (last prompt token, output of layer 18). For each concept and variable we run k-means (20 inits, 3 seeds) and Ward clustering with k = the number of distinct values, and score against the true values with the adjusted Rand index (ARI). Nothing is tuned on the labels apart from k. Controls: raw 4096-d activations, raw projected on its top principal components (same size as the subspace), and 10 random subspaces of the same size.
+
+All prompts (all templates), k-means ARI (Ward in `value_clustering_summary.csv` is similar):
+
+| Concept, variable | k | raw | raw PCA | random | DAS | HyperDAS (mean over seeds) |
+|---|---|---|---|---|---|---|
+| time of week, day | 7 | 0.32 | 0.29 | 0.23 | - | **0.94** |
+| months, sum | 35 | 0.00 | 0.02 | 0.02 | 0.33 | 0.53 |
+| weekdays, sum | 20 | 0.02 | 0.03 | 0.02 | 0.43 | 0.59 |
+| hours, sum | 71 | 0.08 | 0.11 | 0.06 | 0.24 | 0.48 |
+| sums, units digit (months / weekdays / hours) | 10 | ~0 | ~0 | ~0 | 0.14 / 0.33 / 0.04 | 0.28 / 0.44 / 0.27 |
+| time of week, hour | 23 | -0.02 | -0.02 | -0.01 | - | -0.02 |
+
+Follow-up (`value_clustering_followup.py`), restricted to the original template that DAS and HyperDAS were trained on (k-means / Ward):
+
+| Concept, variable | n | raw | random | DAS | HyperDAS |
+|---|---|---|---|---|---|
+| months, sum | 187 | 0.05 / 0.07 | 0.04 / 0.04 | 0.45 / 0.51 | **0.72 / 0.75** |
+| weekdays, sum | 67 | 0.07 / 0.05 | 0.04 / 0.04 | 0.32 / 0.30 | 0.64 / **0.70** |
+| hours, sum | 700 | 0.08 / 0.06 | 0.06 / 0.05 | 0.24 / 0.23 | 0.48 / 0.49 |
+
+- In raw space the values do not cluster at all (ARI ~0), and a size-matched PCA of raw space does not help. Inside the HyperDAS subspaces they do, and more than inside DAS for every concept. The HyperDAS day subspace recovers the 7 days at ARI 0.94.
+- Sums cluster less well when the other templates are mixed in (months 0.53 vs 0.72): the subspaces were trained on one template and transfer only partly.
+- Hour does not cluster in any space, by prompt hour or by answer hour (hour + n), even though swapping the hour subspace sets the answer hour 99% of the time. Unresolved.
+- The template-0 numbers are a follow-up chosen after seeing the all-template numbers, so report them as such.
+
 ## Reproduce
 
 On a CUDA box with access to Llama-3.1-8B:
